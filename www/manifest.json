@@ -1,0 +1,13 @@
+{
+  "name": "时光 · 倒计时与专注",
+  "short_name": "时光",
+  "description": "纪念日倒计时、正计时专注记录与学习统计",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f5fb",
+  "theme_color": "#6366f1",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

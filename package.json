@@ -1,0 +1,19 @@
+{
+  "name": "shiguang",
+  "version": "1.0.0",
+  "description": "时光 · 倒计时与专注（纪念日倒计时 + 正计时专注 + 学习统计 + AI 分析）",
+  "private": true,
+  "scripts": {
+    "test": "node test/logic.test.js",
+    "android:add": "cap add android",
+    "android:sync": "cap sync android",
+    "android:open": "cap open android"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/android": "^6.0.0"
+  }
+}

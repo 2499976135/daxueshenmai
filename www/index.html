@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#6366f1" />
+  <title>大雪深埋</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="app-header">
+      <div class="brand"><span class="brand-logo">⏳</span><span class="brand-name">大雪深埋</span></div>
+      <div class="header-actions">
+        <button id="themeToggle" class="icon-btn" title="切换主题">🌙</button>
+      </div>
+    </header>
+
+    <main class="app-main">
+
+      <!-- ============ 待办页 ============ -->
+      <section id="page-countdown" class="page active">
+        <div class="section-head">
+          <h2 class="section-title">待办</h2>
+          <button id="addEventBtn" class="add-btn">＋ 添加</button>
+        </div>
+        <div id="countdownList" class="countdown-list"></div>
+      </section>
+
+      <!-- ============ 专注页 ============ -->
+      <section id="page-focus" class="page">
+        <div class="card timer-card">
+          <div class="timer-ring" id="timerRing">
+            <div class="timer-center">
+              <div id="timerText" class="timer-text">00:00</div>
+              <div id="timerSub" class="timer-sub">选择科目，开始专注</div>
+            </div>
+          </div>
+          <div class="subject-label">专注科目</div>
+          <div class="subject-chips" id="subjectChips"></div>
+          <div class="focus-controls">
+            <button id="focusStartBtn" class="btn primary">开始</button>
+            <button id="focusPauseBtn" class="btn">暂停</button>
+            <button id="focusStopBtn" class="btn danger">结束</button>
+          </div>
+        </div>
+
+        <div class="section-head">
+          <h2 class="section-title">今日专注记录</h2>
+          <div id="todayTotal" class="today-total"></div>
+        </div>
+        <div id="subjectProgress" class="subject-progress"></div>
+        <div id="todaySessions" class="session-list"></div>
+      </section>
+
+      <!-- ============ 统计页 ============ -->
+      <section id="page-stats" class="page">
+        <div class="stat-cards" id="statCards"></div>
+        <div class="card chart-card">
+          <div class="chart-head">
+            <div class="chart-title">各科目专注占比</div>
+            <div class="seg-control small" id="pieRange">
+              <button data-r="day">日</button>
+              <button data-r="week">周</button>
+              <button data-r="month" class="active">月</button>
+            </div>
+          </div>
+          <canvas id="chartPie"></canvas>
+          <div id="chartPieEmpty" class="chart-empty hidden">暂无数据</div>
+        </div>
+        <div class="card chart-card">
+          <div class="chart-title">近 7 天专注时长</div>
+          <canvas id="chartBar"></canvas>
+          <div id="chartBarEmpty" class="chart-empty hidden">暂无数据</div>
+        </div>
+        <div class="card chart-card">
+          <div class="chart-title">近 30 天专注趋势</div>
+          <canvas id="chartLine"></canvas>
+          <div id="chartLineEmpty" class="chart-empty hidden">暂无数据</div>
+        </div>
+        <div class="card ai-card">
+          <div class="chart-title">AI 学习分析</div>
+          <p class="ai-hint">预留接口，可接入 AI 分析学习状态（需在设置中配置 API）。</p>
+          <button id="aiAnalyzeBtn" class="btn primary">🤖 生成学习分析</button>
+          <div id="aiResult" class="ai-result"></div>
+        </div>
+      </section>
+
+      <!-- ============ 设置页 ============ -->
+      <section id="page-settings" class="page">
+        <div class="card">
+          <h3 class="card-title">外观</h3>
+          <div class="setting-row">
+            <span>主题</span>
+            <div class="seg-control" id="themeSeg">
+              <button data-theme="light" class="active">浅色</button>
+              <button data-theme="dark">深色</button>
+              <button data-theme="auto">跟随系统</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title">番茄钟</h3>
+          <div class="setting-row">
+            <span>番茄钟模式</span>
+            <label class="switch"><input type="checkbox" id="pomodoroEnabled" /><span class="slider"></span></label>
+          </div>
+          <div class="setting-row" id="pomodoroRows">
+            <span>专注 / 休息（分钟）</span>
+            <span class="inline-inputs">
+              <input type="number" id="focusMinInput" min="1" max="120" class="num-input small" />
+              <span class="sep">/</span>
+              <input type="number" id="breakMinInput" min="1" max="60" class="num-input small" />
+            </span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title">AI 接口（预留）</h3>
+          <div class="setting-row">
+            <span>启用 AI</span>
+            <label class="switch"><input type="checkbox" id="aiEnabled" /><span class="slider"></span></label>
+          </div>
+          <div class="setting-row">
+            <span>服务商</span>
+            <select id="aiProvider" class="select-input">
+              <option value="deepseek">DeepSeek</option>
+              <option value="openai">OpenAI</option>
+              <option value="ollama">Ollama（本地）</option>
+              <option value="custom">自定义</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <span>接口地址</span>
+            <input type="text" id="aiEndpoint" class="text-input" placeholder="https://..." />
+          </div>
+          <div class="setting-row">
+            <span>API Key</span>
+            <input type="password" id="aiKey" class="text-input" placeholder="sk-..." />
+          </div>
+          <div class="setting-row">
+            <span>模型</span>
+            <input type="text" id="aiModel" class="text-input" placeholder="deepseek-chat" />
+          </div>
+          <p class="ai-note">数据仅保存在本地，仅在点击“生成分析”时向接口发送聚合后的统计摘要，不上传原始记录。</p>
+        </div>
+
+        <div class="card">
+          <h3 class="card-title">数据</h3>
+          <div class="setting-row">
+            <span>导出备份（JSON）</span>
+            <button id="exportBtn" class="btn small">导出</button>
+          </div>
+          <div class="setting-row">
+            <span>导入备份</span>
+            <button id="importBtn" class="btn small">导入</button>
+            <input type="file" id="importFile" accept=".json" class="hidden" />
+          </div>
+        </div>
+
+        <p class="footer-note">大雪深埋 · 本地运行 · 数据不出设备</p>
+      </section>
+
+    </main>
+
+    <nav class="bottom-nav">
+      <button data-page="countdown" class="nav-item active"><span class="nav-icon">⏳</span><span>待办</span></button>
+      <button data-page="focus" class="nav-item"><span class="nav-icon">⏱️</span><span>专注</span></button>
+      <button data-page="stats" class="nav-item"><span class="nav-icon">📊</span><span>统计</span></button>
+      <button data-page="settings" class="nav-item"><span class="nav-icon">⚙️</span><span>设置</span></button>
+    </nav>
+
+    <!-- ============ 倒计时详情（沉浸模式） ============ -->
+    <section id="page-detail" class="detail hidden">
+      <div class="detail-top">
+        <button id="detailBack" class="detail-btn">← 返回</button>
+        <div class="detail-top-right">
+          <button id="detailEdit" class="detail-btn" title="编辑">✏️</button>
+          <button id="detailBg" class="detail-btn" title="更换背景">🖼️</button>
+        </div>
+      </div>
+      <div class="detail-body">
+        <div id="detailType" class="detail-type"></div>
+        <div class="detail-num-row">
+          <span id="detailNum" class="detail-num">0</span>
+          <span id="detailUnit" class="detail-unit">天</span>
+        </div>
+        <div id="detailName" class="detail-name"></div>
+        <div id="detailDate" class="detail-date"></div>
+      </div>
+    </section>
+
+    <!-- 弹窗 -->
+    <div id="modal" class="modal hidden">
+      <div class="modal-box" id="modalBox"></div>
+    </div>
+
+    <!-- 轻提示 -->
+    <div id="toast" class="toast hidden"></div>
+  </div>
+
+  <script src="js/store.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/countdown.js"></script>
+  <script src="js/focus.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

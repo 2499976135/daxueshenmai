@@ -1,0 +1,11 @@
+{
+	"appId": "com.shiguang.app",
+	"appName": "时光",
+	"webDir": "www",
+	"server": {
+		"androidScheme": "https"
+	},
+	"android": {
+		"allowMixedContent": true
+	}
+}
