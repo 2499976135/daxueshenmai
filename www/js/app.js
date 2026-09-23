@@ -846,6 +846,12 @@
     $('aiModel').value = s.ai.model || '';
   }
 
+  /* 访问 Capacitor 原生插件。本项目没有打包器，用全局 Capacitor.Plugins。*/
+  function capPlugin(name) {
+    const C = typeof window !== 'undefined' ? window.Capacitor : null;
+    return (C && C.Plugins && C.Plugins[name]) || null;
+  }
+
   function exportData() {
     const json = Store.exportJSON();
     const filename = 'shiguang-backup-' + Countdown.todayStr() + '.json';
@@ -899,7 +905,42 @@
       }
     }
 
-    // Android / 现代浏览器：优先系统分享（能直接存文件/发微信）
+    // 原生 App：Android WebView 既没有 navigator.share，也不处理 <a download>，
+    // 必须用 Capacitor 插件把文件写进缓存目录，再拉起系统分享面板。
+    const Filesystem = capPlugin('Filesystem');
+    const Share = capPlugin('Share');
+    if (Filesystem && typeof Filesystem.writeFile === 'function') {
+      Filesystem.writeFile({
+        path: filename,
+        data: json,
+        directory: 'CACHE',
+        encoding: 'utf8'
+      })
+        .then(function (res) {
+          if (Share && typeof Share.share === 'function') {
+            return Share.share({
+              title: '时光备份',
+              text: '时光数据备份 ' + filename,
+              url: res.uri,
+              dialogTitle: '保存或发送备份文件'
+            });
+          }
+          toast('备份已写入应用缓存：' + filename);
+          return null;
+        })
+        .then(function () {
+          toast('请在弹窗里选择「保存到文件」或发送给自己');
+          return null;
+        })
+        .catch(function (err) {
+          if (err && (err.name === 'AbortError' || /cancel/i.test(String(err.message || '')))) return;
+          const msg = err && err.message ? err.message : '未知原因';
+          showFallback('系统分享不可用（' + esc(msg) + '），请复制下方内容保存为 ' + esc(filename));
+        });
+      return;
+    }
+
+    // 网页环境：优先系统分享（能直接存文件/发微信）
     const canNativeShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
     if (canNativeShare) {
       const file = (typeof File === 'function')
@@ -923,6 +964,17 @@
   }
 
   function shareBackup(blob, filename, json) {
+    const Filesystem = capPlugin('Filesystem');
+    const Share = capPlugin('Share');
+    if (Filesystem && typeof Filesystem.writeFile === 'function' && Share && typeof Share.share === 'function') {
+      Filesystem.writeFile({ path: filename, data: json, directory: 'CACHE', encoding: 'utf8' })
+        .then(function (res) {
+          return Share.share({ title: '时光备份', text: '时光数据备份', url: res.uri, dialogTitle: '保存或发送备份文件' });
+        })
+        .catch(function () { toast('分享不可用，请用「复制备份内容」'); });
+      return;
+    }
+
     const canNativeShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
     const file = canNativeShare && (typeof File === 'function')
       ? new File([blob], filename, { type: 'application/json' })

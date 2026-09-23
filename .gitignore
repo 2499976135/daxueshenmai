@@ -1,0 +1,24 @@
+# ---- 依赖 ----
+node_modules/
+
+# ---- 构建产物（CI 里重新生成，不入库）----
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/capacitor-cordova-android-plugins/build/
+
+# ---- 签名密钥：绝对不能提交 ----
+*.jks
+*.keystore
+keystore.b64
+*.b64
+
+# ---- 安装包：统一走 GitHub Releases 分发 ----
+*.apk
+*.aab
+
+# ---- 系统 / 编辑器杂物 ----
+.DS_Store
+Thumbs.db
+*.log
