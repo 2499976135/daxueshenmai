@@ -79,6 +79,13 @@
           <canvas id="chartLine"></canvas>
           <div id="chartLineEmpty" class="chart-empty hidden">暂无数据</div>
         </div>
+        <div class="card chart-card">
+          <div class="chart-title">高效时段分析</div>
+          <div class="chart-subtitle">近30天，不同时段统计，橙色区域学习效率相对较高</div>
+          <canvas id="chartHours"></canvas>
+          <div id="chartHoursEmpty" class="chart-empty hidden">暂无数据</div>
+          <div class="peak-hint" id="peakHint"></div>
+        </div>
         <div class="card ai-card">
           <div class="chart-title">AI 学习分析</div>
           <p class="ai-hint">预留接口，可接入 AI 分析学习状态（需在设置中配置 API）。</p>
@@ -150,7 +157,7 @@
         <div class="card">
           <h3 class="card-title">数据</h3>
           <div class="setting-row">
-            <span>导出备份（JSON）</span>
+            <span>导出备份（JSON）<br /><small style="color:var(--muted)">保存到系统下载/分享；失败可复制</small></span>
             <button id="exportBtn" class="btn small">导出</button>
           </div>
           <div class="setting-row">

@@ -32,6 +32,46 @@
     };
   }
 
+  /* 旧会话补全字段：保证删除科目后的历史、新统计（占比/高效时段）都能用 */
+  function normalizeSessions(sessions, subjects) {
+    const subjMap = {};
+    (subjects || []).forEach(function (s) { if (s && s.id) subjMap[s.id] = s; });
+
+    return (Array.isArray(sessions) ? sessions : [])
+      .filter(function (s) { return s && typeof s === 'object' && typeof s.durationMs === 'number' && s.durationMs >= 0; })
+      .map(function (s) {
+        const id = s.id || uid();
+        const subjectId = s.subjectId || '';
+        const meta = subjMap[subjectId];
+        const startMs = Date.parse(s.start);
+        const start = isNaN(startMs) ? new Date().toISOString() : new Date(startMs).toISOString();
+        let end = s.end;
+        const endMs = Date.parse(end);
+        if (isNaN(endMs)) {
+          end = new Date(startMs + (s.durationMs || 0)).toISOString();
+        } else {
+          end = new Date(endMs).toISOString();
+        }
+        return {
+          id: id,
+          subjectId: subjectId,
+          subjectName: s.subjectName || (meta ? meta.name : '未知'),
+          subjectColor: s.subjectColor || (meta ? meta.color : '#8a90a3'),
+          start: start,
+          end: end,
+          durationMs: Math.round(s.durationMs)
+        };
+      });
+  }
+
+  function mergeSettings(baseSettings, parsedSettings) {
+    const ps = parsedSettings || {};
+    const out = Object.assign({}, baseSettings, ps);
+    out.pomodoro = Object.assign({}, defaults().settings.pomodoro, ps.pomodoro || {});
+    out.ai = Object.assign({}, defaults().settings.ai, ps.ai || {});
+    return out;
+  }
+
   function load() {
     try {
       const raw = localStorage.getItem(KEY);
@@ -39,12 +79,10 @@
         const parsed = JSON.parse(raw);
         // 深合并默认值，避免新增字段缺失导致运行错误
         const base = defaults();
-        base.events = parsed.events || [];
-        base.subjects = parsed.subjects && parsed.subjects.length ? parsed.subjects : base.subjects;
-        base.sessions = parsed.sessions || [];
-        base.settings = Object.assign({}, base.settings, parsed.settings || {});
-        base.settings.pomodoro = Object.assign({}, base.settings.pomodoro, (parsed.settings && parsed.settings.pomodoro) || {});
-        base.settings.ai = Object.assign({}, base.settings.ai, (parsed.settings && parsed.settings.ai) || {});
+        base.events = Array.isArray(parsed.events) ? parsed.events : [];
+        base.subjects = Array.isArray(parsed.subjects) && parsed.subjects.length ? parsed.subjects : base.subjects;
+        base.sessions = normalizeSessions(parsed.sessions, base.subjects);
+        base.settings = mergeSettings(base.settings, parsed.settings);
         return base;
       }
     } catch (e) {
@@ -130,13 +168,15 @@
 
     /* ---------- 导入导出 ---------- */
     exportJSON: function () { return JSON.stringify(data, null, 2); },
+    /* 兼容旧版备份：记录全保留、字段补全，导入后新统计可直接出结果 */
     importJSON: function (str) {
       const parsed = JSON.parse(str);
+      if (!parsed || typeof parsed !== 'object') throw new Error('bad format');
       const base = defaults();
       base.events = Array.isArray(parsed.events) ? parsed.events : [];
       base.subjects = Array.isArray(parsed.subjects) && parsed.subjects.length ? parsed.subjects : base.subjects;
-      base.sessions = Array.isArray(parsed.sessions) ? parsed.sessions : [];
-      base.settings = Object.assign({}, base.settings, parsed.settings || {});
+      base.sessions = normalizeSessions(parsed.sessions, base.subjects);
+      base.settings = mergeSettings(base.settings, parsed.settings);
       data = base;
       persist();
     },

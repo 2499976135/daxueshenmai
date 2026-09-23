@@ -630,6 +630,55 @@
     }).sort(function (a, b) { return b.ms - a.ms; });
   }
 
+  /* 将会话时长拆入各自然小时（跨小时按比例计入） */
+  function hourlyBreakdown(days) {
+    const buckets = new Array(24).fill(0);
+    const from = new Date();
+    from.setDate(from.getDate() - (days - 1));
+    from.setHours(0, 0, 0, 0);
+
+    Store.getData().sessions.forEach(function (s) {
+      const start = new Date(s.start);
+      if (start < from) return;
+      let remain = Math.max(0, s.durationMs || 0);
+      let cursor = start.getTime();
+      while (remain > 0) {
+        const d = new Date(cursor);
+        const hourEnd = new Date(d);
+        hourEnd.setHours(d.getHours() + 1, 0, 0, 0);
+        const slice = Math.min(remain, hourEnd.getTime() - cursor);
+        if (slice > 0) buckets[d.getHours()] += slice;
+        remain -= slice;
+        cursor = hourEnd.getTime();
+        if (cursor - start.getTime() > 24 * 3600 * 1000) break;
+      }
+    });
+
+    return buckets.map(function (ms, h) {
+      return {
+        hour: h,
+        label: h + '时',
+        ms: ms,
+        value: Math.round(ms / 60000)
+      };
+    });
+  }
+
+  /* 最强连续 2 小时窗口（可跨 0 点） */
+  function findPeakWindow(hourly) {
+    let best = { start: -1, end: -1, ms: 0 };
+    for (let i = 0; i < 24; i++) {
+      const a = hourly[i].ms + hourly[(i + 1) % 24].ms;
+      if (a > best.ms) best = { start: i, end: (i + 1) % 24, ms: a };
+    }
+    if (best.ms <= 0) return null;
+    return best;
+  }
+
+  function hourLabel(h) {
+    return (h < 10 ? '0' + h : '' + h) + ':00';
+  }
+
   function computeStats() {
     const d = Store.getData();
     const today = Countdown.todayStr();
@@ -664,6 +713,15 @@
     const avg7 = Math.round(weekTrend.reduce(function (s, x) { return s + x.value; }, 0) / 7);
     const avg30 = Math.round(monthTrend.reduce(function (s, x) { return s + x.value; }, 0) / 30);
 
+    const hourly = hourlyBreakdown(30);
+    const peak = findPeakWindow(hourly);
+    let peakTitle = '';
+    if (peak) {
+      const endH = (peak.end + 1) % 24;
+      peakTitle = hourLabel(peak.start) + '–' + hourLabel(endH);
+    }
+    const peakMinutes = peak ? Math.round(peak.ms / 60000) : 0;
+
     return {
       totalMinutes: Math.round(totalMs / 60000),
       totalHuman: Focus.humanize(totalMs),
@@ -676,7 +734,11 @@
       avg30Human: Focus.humanize(avg30 * 60000),
       bySubject: bySubject,
       weekTrend: weekTrend,
-      monthTrend: monthTrend
+      monthTrend: monthTrend,
+      hourly: hourly,
+      peak: peak,
+      peakTitle: peakTitle,
+      peakMinutes: peakMinutes
     };
   }
 
@@ -699,22 +761,42 @@
     const rangeTotal = breakdown.reduce(function (sum, x) { return sum + x.ms; }, 0);
     const pieCanvas = $('chartPie');
     const pieOk = Charts.renderDonut(pieCanvas,
-      breakdown.map(function (s) { return { label: s.name, value: s.ms, color: s.color }; }),
+      breakdown.map(function (s) { return { label: s.name, value: s.value, color: s.color }; }),
       Focus.humanize(rangeTotal), rangeText);
     $('chartPieEmpty').classList.toggle('hidden', pieOk);
     const legend = pieCanvas.parentElement.querySelector('.legend') || addLegend(pieCanvas.parentElement);
     legend.innerHTML = breakdown.map(function (s) {
-      return '<span class="legend-item"><span class="legend-dot" style="background:' + s.color + '"></span>' +
-        esc(s.name) + ' ' + s.percent + '%</span>';
+      return '<div class="legend-item">' +
+        '<span class="legend-dot" style="background:' + s.color + '"></span>' +
+        '<span class="legend-name">' + esc(s.name) + '</span>' +
+        '<span class="legend-pct">' + s.percent + '%</span>' +
+        '<span class="legend-dur">' + Focus.humanize(s.ms) + '</span>' +
+        '</div>';
     }).join('');
 
     const barOk = Charts.renderBar($('chartBar'), st.weekTrend.map(function (x) {
       return { label: x.label, value: x.value, color: '#6366f1' };
-    }));
+    }), { target: st.dailyGoal });
     $('chartBarEmpty').classList.toggle('hidden', barOk);
 
-    const lineOk = Charts.renderLine($('chartLine'), st.monthTrend);
+    const lineOk = Charts.renderLine($('chartLine'), st.monthTrend, null, { maWindow: 7, showAvg: true });
     $('chartLineEmpty').classList.toggle('hidden', lineOk);
+
+    // 高效时段分析（近 30 天 · 按小时）
+    const hourItems = st.hourly.map(function (x) {
+      return { label: x.label, value: x.value, color: '#6366f1' };
+    });
+    const hoursOk = Charts.renderHours($('chartHours'), hourItems, {
+      peakStart: st.peak ? st.peak.start : -1,
+      peakEnd: st.peak ? st.peak.end : -1
+    });
+    $('chartHoursEmpty').classList.toggle('hidden', hoursOk);
+    const peakHint = $('peakHint');
+    if (peakHint) {
+      peakHint.textContent = st.peak
+        ? '高效时段 ' + st.peakTitle + ' · 这 2 小时共 ' + Charts.fmtMin(st.peakMinutes)
+        : '专注记录还不够，多积累几天就能算出高效时段';
+    }
 
     window._lastSummary = st;
   }
@@ -765,22 +847,121 @@
   }
 
   function exportData() {
-    const blob = new Blob([Store.exportJSON()], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'shiguang-backup-' + Countdown.todayStr() + '.json';
-    a.click();
-    URL.revokeObjectURL(a.href);
-    toast('已导出');
+    const json = Store.exportJSON();
+    const filename = 'shiguang-backup-' + Countdown.todayStr() + '.json';
+    const blob = new Blob([json], { type: 'application/json' });
+
+    function showFallback(msg) {
+      showModal('导出备份',
+        '<p style="font-size:13px;color:var(--text-soft);margin:0 0 10px">' +
+          (msg || '请复制下方内容，粘贴到备忘录 / 微信文件传输助手，或保存为 ' + esc(filename)) +
+        '</p>' +
+        '<textarea id="exportText" readonly style="width:100%;height:180px;border:1px solid var(--border);border-radius:12px;padding:10px;font-size:12px;font-family:ui-monospace,Consolas,monospace;background:var(--bg-soft);color:var(--text)"></textarea>' +
+        '<div class="form-actions">' +
+          '<button id="exportCopy" class="btn primary">复制备份内容</button>' +
+          '<button id="exportShare" class="btn">系统分享</button>' +
+          '<button id="exportClose" class="btn">关闭</button>' +
+        '</div>',
+        function () {
+          const ta = $('exportText');
+          ta.value = json;
+          $('exportCopy').onclick = function () {
+            ta.select();
+            ta.setSelectionRange(0, 99999999);
+            const ok = function () { toast('已复制，请粘贴保存到备忘录或聊天工具'); };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(json).then(ok, function () {
+                try { document.execCommand('copy'); ok(); } catch (e) { toast('复制失败，请长按选中后复制'); }
+              });
+            } else {
+              try { document.execCommand('copy'); ok(); } catch (e) { toast('复制失败，请长按选中后复制'); }
+            }
+          };
+          $('exportShare').onclick = function () { shareBackup(blob, filename, json); };
+          $('exportClose').onclick = closeModal;
+        });
+    }
+
+    function tryDownload() {
+      try {
+        const a = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+        toast('已触发下载：' + filename + '，请在系统「下载」文件夹查看');
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    // Android / 现代浏览器：优先系统分享（能直接存文件/发微信）
+    const canNativeShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+    if (canNativeShare) {
+      const file = (typeof File === 'function')
+        ? new File([blob], filename, { type: 'application/json' })
+        : null;
+      if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file], title: '时光备份', text: '时光数据备份 ' + filename })
+          .then(function () {
+            toast('已打开分享，请保存到文件或发送给自己');
+          })
+          .catch(function (err) {
+            if (err && err.name === 'AbortError') { toast('已取消分享'); return; }
+            if (!tryDownload()) showFallback();
+          });
+        return;
+      }
+    }
+
+    if (tryDownload()) return;
+    showFallback('未能直接下载。请复制下方备份内容并保存为 ' + esc(filename));
+  }
+
+  function shareBackup(blob, filename, json) {
+    const canNativeShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+    const file = canNativeShare && (typeof File === 'function')
+      ? new File([blob], filename, { type: 'application/json' })
+      : null;
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: '时光备份', text: '时光数据备份' })
+        .then(function () { toast('已打开分享'); })
+        .catch(function (err) {
+          if (err && err.name === 'AbortError') return;
+          toast('分享不可用，请用「复制备份内容」');
+        });
+      return;
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(json).then(function () { toast('已复制备份内容'); });
+    } else {
+      toast('请长按文本框复制');
+    }
   }
 
   /* ================= 初始化 ================= */
   function init() {
     applyTheme(Store.getData().settings.theme || 'light');
+
+    // 恢复未正常结束的专注会话（进程被杀 / 清后台后）
+    const recovered = Focus.restore();
+    if (recovered) {
+      selectedSubjectId = recovered.subjectId;
+    }
+
     renderCountdownList();
     renderFocus();
     updateRing();
     lastToday = Countdown.todayStr();
+    if (recovered) {
+      $('timerText').textContent = Focus.format(recovered.elapsedMs);
+      updateRing();
+      toast('已恢复未完成的专注（已暂停 ' + Focus.humanize(recovered.elapsedMs) + '），可继续或结束');
+    }
 
     // 顶栏主题切换
     $('themeToggle').onclick = function () {
