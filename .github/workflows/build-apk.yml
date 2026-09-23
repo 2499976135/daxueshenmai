@@ -5,6 +5,12 @@ on:
   workflow_dispatch:
   push:
     branches: [ main, master ]
+    # 只改文档 / 忽略规则时不必重新打包
+    paths-ignore:
+      - 'README.md'
+      - 'DEVELOPMENT.md'
+      - '.gitignore'
+      - 'LICENSE'
 
 jobs:
   build:
