@@ -33,6 +33,8 @@ jobs:
       - name: Build debug APKs (per-ABI)
         run: |
           cd android
+          # Windows 上传的 gradlew 可能带 CRLF，Linux 上会报 exit 127
+          sed -i 's/\r$//' gradlew
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
 
