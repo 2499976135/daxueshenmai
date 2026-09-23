@@ -3,12 +3,20 @@
 buildscript {
     
     repositories {
-        // 国内镜像优先，避免访问 google()/mavenCentral() 缓慢或超时
-        maven { url 'https://maven.aliyun.com/repository/public' }
-        maven { url 'https://maven.aliyun.com/repository/google' }
-        maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
-        google()
-        mavenCentral()
+        // CI（GitHub Actions 海外机器）只走官方源。
+        // 阿里云镜像对海外 IP 会返回 502 Bad Gateway，而 Gradle 遇到 5xx
+        // 不会自动换下一个仓库，会直接中止构建（实测 BUILD FAILED in 43s）。
+        // 本地开发仍优先国内镜像加速，google()/mavenCentral() 兜底。
+        if (System.getenv('CI') != null) {
+            google()
+            mavenCentral()
+        } else {
+            maven { url 'https://maven.aliyun.com/repository/public' }
+            maven { url 'https://maven.aliyun.com/repository/google' }
+            maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+            google()
+            mavenCentral()
+        }
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:8.2.1'
@@ -23,10 +31,15 @@ apply from: "variables.gradle"
 
 allprojects {
     repositories {
-        maven { url 'https://maven.aliyun.com/repository/public' }
-        maven { url 'https://maven.aliyun.com/repository/google' }
-        google()
-        mavenCentral()
+        if (System.getenv('CI') != null) {
+            google()
+            mavenCentral()
+        } else {
+            maven { url 'https://maven.aliyun.com/repository/public' }
+            maven { url 'https://maven.aliyun.com/repository/google' }
+            google()
+            mavenCentral()
+        }
     }
 }
 

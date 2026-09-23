@@ -1,0 +1,15 @@
+# 统一换行：仓库内一律存 LF，检出也是 LF。
+# 起因：用 GitHub 网页上传时整个 android/ 目录被转成 CRLF，导致
+#   1) gradlew 在 Linux runner 上报 bad interpreter（exit 127，0 秒失败）
+#   2) 40+ 个文件产生无意义的大 diff，掩盖真正的改动
+* text=auto eol=lf
+
+# Windows 批处理必须保持 CRLF，否则 cmd 解析异常
+*.bat text eol=crlf
+
+# 二进制文件不做换行转换
+*.jar binary
+*.png binary
+*.apk binary
+*.jks binary
+*.keystore binary
